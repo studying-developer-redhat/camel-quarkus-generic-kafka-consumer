@@ -1,45 +1,35 @@
 package com.redhat.rafaellbarros.route.builder;
 
-import org.apache.camel.Exchange;
+import com.redhat.rafaellbarros.model.Message;
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.component.jackson.JacksonDataFormat;
 import org.apache.camel.component.kafka.KafkaConstants;
-import org.apache.camel.model.rest.RestBindingMode;
 
 public class ApiRouteBuilder extends RouteBuilder {
 
     protected String KAFKA_TOPIC = "{{quarkus.openshift.env.vars.kafka-topic}}";
+    protected String KAFKA_TOPIC_PROCESSED = "{{quarkus.openshift.env.vars.kafka-topic-processed}}";
     protected String KAFKA_BOOTSTRAP_SERVERS = "{{quarkus.openshift.env.vars.kafka-bootstrap-servers}}";
+    protected String KAFKA_GROUP_ID = "{{quarkus.openshift.env.vars.kafka-group-id}}";
 
     @Override
-    public void configure() throws Exception {
+    public void configure() {
 
-        // REST and Open API configuration
-        restConfiguration().bindingMode(RestBindingMode.auto)
-                .component("platform-http")
-                .dataFormatProperty("prettyPrint", "true")
-                .contextPath("/").port(8080)
-                .apiContextPath("/openapi")
-                .apiProperty("api.title", "Camel Quarkus Generic Kafka API Demo")
-                .apiProperty("api.version", "1.0.0-SNAPSHOT")
-                .apiProperty("cors", "true");
+        //Route that consumes message to kafka topic
+        from("kafka:"+ KAFKA_TOPIC + "?brokers=" + KAFKA_BOOTSTRAP_SERVERS + "&groupId=" + KAFKA_GROUP_ID)
+                .routeId("kafkaConsumerRawTopic")
+                .unmarshal(new JacksonDataFormat(Message.class))
+                .log("Message received from Kafka Topic raw : ${body}")
+                .to("direct:insertProcessedTopic")
+        ;
 
-        // REST methods configuration
-        rest("/rest").tag("API Demo using Camel and Quarkus")
-                .produces("application/json")
-                .get("/payloads/{code}")
-                .description("Send payload to kafka")
-                .route().routeId("getPayload")
-                .to("direct:sendToKafka")
-                .setHeader(Exchange.HTTP_RESPONSE_CODE, constant(404))
-                .setHeader(Exchange.HTTP_RESPONSE_CODE, constant(200))
-                .endRest();
-
-        //Route that sends message to kafka topic
-        from("direct:sendToKafka").routeId("sendToKafka")
-                .log("code searched: ${header.code}")
+        //Route insert object on Processed Topic
+        from("direct:insertProcessedTopic")
+                .routeId("insertProcessedTopic")
+                .marshal().json()   // marshall message to send to kafka
                 .setHeader(KafkaConstants.KEY, constant("Camel")) // Key of the message
-                .to("kafka:"+ KAFKA_TOPIC + "?brokers=" + KAFKA_BOOTSTRAP_SERVERS)
-                .setBody(simple("Message Sended!"));
-
+                .to("kafka:"+ KAFKA_TOPIC_PROCESSED + "?brokers=" + KAFKA_BOOTSTRAP_SERVERS)
+                .log("Message send from Kafka Topic processed : ${body}")
+        ;
     }
 }

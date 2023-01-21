@@ -1,13 +1,15 @@
 quarkus:
-  swagger-ui:
-    always-include: 'true'
-    enable: 'true'
-    path: /api
+  #swagger-ui:
+    #always-include: 'true'
+    #enable: 'true'
+    #path: /consumer
   openshift:
     env:
       vars:
-        kafka-bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:my-cluster-kafka-bootstrap.kafka-dev.svc.cluster.local:9092}
-        kafka-topic: ${KAFKA_TOPIC:eventos}
+        kafka-bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka-cluster-dev-kafka-bootstrap.kafka-dev.svc.cluster.local:9092}
+        kafka-topic: ${KAFKA_TOPIC:payload}
+        kafka-topic-processed: ${KAFKA_TOPIC:payloadt-processed-ephemeral}
+        kafka-group-id: ${KAFKA_GROUP_ID:payloadConsumerGroup}
     route:
       expose: 'true'
     deploy: 'true'
@@ -15,5 +17,6 @@ quarkus:
     trust-certs: 'true'
   http:
     non-application-root-path: /
+    port: 8090
   s2i:
     base-jvm-image: registry.access.redhat.com/ubi8/openjdk-11
